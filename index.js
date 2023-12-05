@@ -1,14 +1,15 @@
 const express = require("express");
 const cors = require("cors");
-const { OpenAI } = require("openai"); // Correct import statement
+const { OpenAI } = require("openai"); 
 const dotenv = require('dotenv');
 
 const app = express();
 
 dotenv.config();
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cors());
+
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -18,11 +19,11 @@ app.post("/symptoms/askai", async (req, res) => {
    console.log("Received data:", { symptoms, ageRange, gender, fullName });
 
   // Construct the prompts for OpenAI
-  const prompt1 = `I would appreciate your help in providing some suggestions or insights. My symptoms include:\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Summarize the response to 100 words`;
+  const prompt1 = `I would appreciate your help in providing some suggestions or insights. My symptoms include:\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Make sure to summarize the response to 70 words`;
 
-  const prompt2 = `What could be the possible causes of these symptoms?\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Summarize the response to 100 words`;
+  const prompt2 = `What could be the possible causes of these symptoms?\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Make sure to summarize the response to 70 words`;
 
-  const prompt3 = `What to do next if I notice these symptoms?\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Summarize the response to 100 words`;
+  const prompt3 = `What to do next if I notice these symptoms?\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Make sure to summarize the response to 70 words`;
 
   try {
     const symptomsCheck = await ChatGPTFunction(prompt1);
@@ -57,13 +58,13 @@ const ChatGPTFunction = async (message) => {
       model: "gpt-3.5-turbo",
       messages: [{ role: "user", content: message }],
       temperature: 0.7,
-      max_tokens: 100,
+      max_tokens: 80,
     });
 
   
     return response.choices[0].message.content;
   } catch (error) {
     console.error("ChatGPTFunction Error:", error);
-    throw error; // Re-throw the error to be caught by the calling function
+    throw error; 
   }
 };
