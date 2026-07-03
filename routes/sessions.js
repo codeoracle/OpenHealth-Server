@@ -95,7 +95,7 @@ router.post("/askai", async (req, res) => {
       (r) => r.isDemo
     );
 
-    createSession.run({
+    await createSession({
       id: sessionId,
       fullName,
       symptoms,
@@ -135,65 +135,76 @@ router.post("/askai", async (req, res) => {
   }
 });
 
-router.get("/", (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
-  const rows = listSessions.all(limit);
-  res.json({
-    sessions: rows.map((row) => ({
-      id: row.id,
-      fullName: row.full_name,
-      symptoms: row.symptoms,
-      ageRange: row.age_range,
-      gender: row.gender,
-      toolType: row.tool_type || "symptom",
-      triageLevel: row.triage_level,
-      isDemo: Boolean(row.is_demo),
-      createdAt: row.created_at,
-    })),
-  });
+router.get("/", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    const rows = await listSessions(limit);
+    res.json({
+      sessions: rows.map((row) => ({
+        id: row.id,
+        fullName: row.full_name,
+        symptoms: row.symptoms,
+        ageRange: row.age_range,
+        gender: row.gender,
+        toolType: row.tool_type || "symptom",
+        triageLevel: row.triage_level,
+        isDemo: Boolean(row.is_demo),
+        createdAt: row.created_at,
+      })),
+    });
+  } catch (error) {
+    console.error("List sessions error:", error.message);
+    res.status(500).json({ message: "Unable to load sessions." });
+  }
 });
 
-router.get("/:id", (req, res) => {
-  const session = getSession.get(req.params.id);
-  if (!session) {
-    return res.status(404).json({ message: "Session not found" });
-  }
+router.get("/:id", async (req, res) => {
+  try {
+    const session = await getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
 
-  const messages = getMessages.all(req.params.id);
-  res.json({
-    session: formatSession(session),
-    messages: messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      createdAt: m.created_at,
-    })),
-  });
+    const messages = await getMessages(req.params.id);
+    res.json({
+      session: formatSession(session),
+      messages: messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.created_at,
+      })),
+    });
+  } catch (error) {
+    console.error("Get session error:", error.message);
+    res.status(500).json({ message: "Unable to load session." });
+  }
 });
 
 router.post("/:id/chat", async (req, res) => {
   const { message } = req.body;
-  const session = getSession.get(req.params.id);
 
-  if (!session) {
-    return res.status(404).json({ message: "Session not found" });
-  }
   if (!message?.trim()) {
     return res.status(400).json({ message: "message is required" });
   }
 
   try {
-    addMessage.run(req.params.id, "user", message.trim());
+    const session = await getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
 
-    const history = getMessages.all(req.params.id);
+    await addMessage(req.params.id, "user", message.trim());
+
+    const history = await getMessages(req.params.id);
     const llmMessages = [
       { role: "system", content: buildSystemPrompt(session) },
       ...history.map((m) => ({ role: m.role, content: m.content })),
     ];
 
     const result = await chat(llmMessages);
-    addMessage.run(req.params.id, "assistant", result.content);
-    touchSession.run(req.params.id);
+    await addMessage(req.params.id, "assistant", result.content);
+    await touchSession(req.params.id);
 
     res.json({
       message: "Reply generated",

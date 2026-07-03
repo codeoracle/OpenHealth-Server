@@ -140,6 +140,7 @@ const chatWithOpenAI = async (messages) => {
   return content;
 };
 
+
 const chatWithClaude = async (messages) => {
   const client = getAnthropicClient();
   if (!client) throw new Error("Anthropic API key is not configured");

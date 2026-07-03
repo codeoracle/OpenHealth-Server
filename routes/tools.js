@@ -61,7 +61,7 @@ router.post("/:toolId", async (req, res) => {
       .map(([k, v]) => `${k}: ${v}`)
       .join("; ");
 
-    createSession.run({
+    await createSession({
       id: sessionId,
       fullName: req.body.fullName || "Anonymous",
       symptoms: symptomsSummary,
