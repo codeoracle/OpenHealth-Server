@@ -1,70 +1,51 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
-const { OpenAI } = require("openai"); 
-const dotenv = require('dotenv');
+const { getProviderStatus } = require("./services/llm");
+const { dbPath } = require("./db/database");
+const sessionsRouter = require("./routes/sessions");
+const nigeriaRouter = require("./routes/nigeria");
 
 const app = express();
 
-dotenv.config();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cors());
 
+app.get("/health", (_req, res) => {
+  const status = getProviderStatus();
+  const hasProvider = Object.values(status.providers).some((p) => p.configured);
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-app.post("/symptoms/askai", async (req, res) => {
-  const { symptoms, ageRange, gender, fullName } = req.body;
-
-   console.log("Received data:", { symptoms, ageRange, gender, fullName });
-
-  // Construct the prompts for OpenAI
-  const prompt1 = `I would appreciate your help in providing some suggestions or insights. My symptoms include:\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Make sure to summarize the response to 70 words`;
-
-  const prompt2 = `What could be the possible causes of these symptoms?\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Make sure to summarize the response to 70 words`;
-
-  const prompt3 = `What to do next if I notice these symptoms?\n symptoms: ${symptoms}\n age range: ${ageRange}\n gender: ${gender}. Make sure to summarize the response to 70 words`;
-
-  try {
-    const symptomsCheck = await ChatGPTFunction(prompt1);
-    const causes = await ChatGPTFunction(prompt2);
-    const treatment = await ChatGPTFunction(prompt3);
-
-    const responseData = {
-      symptomsCheck,
-      causes,
-      treatment,
-    };
-
-    res.status(200).json({
-      message: "Request successful!",
-      data: responseData,
-    });
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ message: "An error occurred" });
-  }
+  res.status(hasProvider ? 200 : 503).json({
+    status: hasProvider ? "ok" : "degraded",
+    message: hasProvider ? "Server is running" : "No LLM provider configured",
+    database: dbPath,
+    llm: status,
+  });
 });
+
+app.use("/symptoms", sessionsRouter);
+app.use("/tools", require("./routes/tools"));
+app.use("/nigeria", nigeriaRouter);
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`);
+  const status = getProviderStatus();
+  console.log(`Server listening on port ${PORT}`);
+  console.log(`Database: ${dbPath}`);
+  console.log(`LLM provider order: ${status.order.join(" → ")}`);
+  console.log(
+    `Groq (free): ${status.providers.groq.configured ? "ready" : "not configured"}`
+  );
+  console.log(
+    `OpenAI: ${status.providers.openai.configured ? "ready" : "not configured"}`
+  );
+  console.log(
+    `Claude: ${status.providers.claude.configured ? "ready" : "not configured"}`
+  );
+  console.log(
+    `Mock fallback: ${status.providers.mock.configured ? "enabled" : "disabled"}`
+  );
 });
-
-const ChatGPTFunction = async (message) => {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: message }],
-      temperature: 0.7,
-      max_tokens: 90,
-    });
-
-  
-    return response.choices[0].message.content;
-  } catch (error) {
-    console.error("ChatGPTFunction Error:", error);
-    throw error; 
-  }
-};
