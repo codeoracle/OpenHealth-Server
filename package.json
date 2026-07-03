@@ -3,6 +3,9 @@
   "version": "1.1.0",
   "description": "OpenHealth symptom checker API with OpenAI and Claude failover",
   "main": "index.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
