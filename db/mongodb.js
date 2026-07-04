@@ -22,12 +22,14 @@ const sessionSchema = new mongoose.Schema({
   tool_type: { type: String, default: "symptom" },
   provider: String,
   is_demo: { type: Number, default: 0 },
+  client_id: { type: String, index: true },
   state: { type: String, default: "Nigeria" },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 });
 
 sessionSchema.index({ created_at: -1 });
+sessionSchema.index({ client_id: 1, created_at: -1 });
 
 const messageSchema = new mongoose.Schema({
   session_id: { type: String, required: true, index: true },
@@ -100,14 +102,15 @@ const createSession = async (data) => {
     tool_type: data.toolType,
     provider: data.provider,
     is_demo: data.isDemo,
+    client_id: data.clientId,
   });
 };
 
 const getSession = async (id) => toSessionRow(await Session.findOne({ id }));
 
-const listSessions = async (limit) => {
+const listSessions = async (limit, clientId) => {
   const rows = await Session.find(
-    {},
+    { client_id: clientId },
     "id full_name symptoms age_range gender tool_type triage_level is_demo created_at"
   )
     .sort({ created_at: -1 })

@@ -10,6 +10,10 @@ const {
   getMessages,
   touchSession,
 } = require("../db/database");
+const {
+  requireClientId,
+  sessionBelongsToClient,
+} = require("../middleware/client");
 
 const router = express.Router();
 
@@ -63,6 +67,9 @@ const buildSystemPrompt = (session) =>
   `For emergencies tell them to call 112 or 199. Keep responses under 120 words. This is not a diagnosis.`;
 
 router.post("/askai", async (req, res) => {
+  const clientId = requireClientId(req, res);
+  if (!clientId) return;
+
   const { symptoms, ageRange, gender, fullName } = req.body;
 
   if (!symptoms || !ageRange || !gender || !fullName) {
@@ -97,6 +104,7 @@ router.post("/askai", async (req, res) => {
 
     await createSession({
       id: sessionId,
+      clientId,
       fullName,
       symptoms,
       ageRange: String(ageRange),
@@ -136,9 +144,12 @@ router.post("/askai", async (req, res) => {
 });
 
 router.get("/", async (req, res) => {
+  const clientId = requireClientId(req, res);
+  if (!clientId) return;
+
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
-    const rows = await listSessions(limit);
+    const rows = await listSessions(limit, clientId);
     res.json({
       sessions: rows.map((row) => ({
         id: row.id,
@@ -159,10 +170,16 @@ router.get("/", async (req, res) => {
 });
 
 router.get("/:id", async (req, res) => {
+  const clientId = requireClientId(req, res);
+  if (!clientId) return;
+
   try {
     const session = await getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ message: "Session not found" });
+    }
+    if (!sessionBelongsToClient(session, clientId)) {
+      return res.status(403).json({ message: "You do not have access to this session." });
     }
 
     const messages = await getMessages(req.params.id);
@@ -182,6 +199,9 @@ router.get("/:id", async (req, res) => {
 });
 
 router.post("/:id/chat", async (req, res) => {
+  const clientId = requireClientId(req, res);
+  if (!clientId) return;
+
   const { message } = req.body;
 
   if (!message?.trim()) {
@@ -192,6 +212,9 @@ router.post("/:id/chat", async (req, res) => {
     const session = await getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ message: "Session not found" });
+    }
+    if (!sessionBelongsToClient(session, clientId)) {
+      return res.status(403).json({ message: "You do not have access to this session." });
     }
 
     await addMessage(req.params.id, "user", message.trim());

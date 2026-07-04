@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { complete } = require("../services/llm");
 const { HEALTH_TOOLS } = require("../data/nigeria-health");
 const { createSession } = require("../db/database");
+const { requireClientId } = require("../middleware/client");
 
 const router = express.Router();
 
@@ -36,6 +37,9 @@ router.get("/:toolId", (req, res) => {
 });
 
 router.post("/:toolId", async (req, res) => {
+  const clientId = requireClientId(req, res);
+  if (!clientId) return;
+
   const tool = HEALTH_TOOLS.find((t) => t.id === req.params.toolId);
   if (!tool) {
     return res.status(404).json({ message: "Tool not found" });
@@ -63,6 +67,7 @@ router.post("/:toolId", async (req, res) => {
 
     await createSession({
       id: sessionId,
+      clientId,
       fullName: req.body.fullName || "Anonymous",
       symptoms: symptomsSummary,
       ageRange: req.body.ageRange || req.body.childAge || req.body.weeksPregnant || "N/A",

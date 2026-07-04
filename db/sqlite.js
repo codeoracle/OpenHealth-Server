@@ -33,6 +33,7 @@ const init = async () => {
       tool_type TEXT DEFAULT 'symptom',
       provider TEXT,
       is_demo INTEGER DEFAULT 0,
+      client_id TEXT,
       state TEXT DEFAULT 'Nigeria',
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -49,6 +50,7 @@ const init = async () => {
 
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_created ON sessions(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_sessions_client ON sessions(client_id, created_at DESC);
   `);
 
   // Backfill columns for databases created before these fields existed.
@@ -61,6 +63,9 @@ const init = async () => {
   addColumn("triage_level", "TEXT");
   addColumn("triage_reason", "TEXT");
   addColumn("tool_type", "TEXT DEFAULT 'symptom'");
+  addColumn("client_id", "TEXT");
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_client ON sessions(client_id, created_at DESC)`);
 };
 
 const logStatus = async () => {
@@ -86,12 +91,12 @@ const createSession = async (data) => {
       id, full_name, symptoms, age_range, gender,
       symptoms_check, causes, treatment,
       triage_level, triage_reason, tool_type,
-      provider, is_demo
+      provider, is_demo, client_id
     ) VALUES (
       @id, @fullName, @symptoms, @ageRange, @gender,
       @symptomsCheck, @causes, @treatment,
       @triageLevel, @triageReason, @toolType,
-      @provider, @isDemo
+      @provider, @isDemo, @clientId
     )`
   ).run(data);
 };
@@ -99,13 +104,13 @@ const createSession = async (data) => {
 const getSession = async (id) =>
   db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(id);
 
-const listSessions = async (limit) =>
+const listSessions = async (limit, clientId) =>
   db
     .prepare(
       `SELECT id, full_name, symptoms, age_range, gender, tool_type, triage_level, is_demo, created_at
-       FROM sessions ORDER BY created_at DESC LIMIT ?`
+       FROM sessions WHERE client_id = ? ORDER BY created_at DESC LIMIT ?`
     )
-    .all(limit);
+    .all(clientId, limit);
 
 const addMessage = async (sessionId, role, content) => {
   db.prepare(

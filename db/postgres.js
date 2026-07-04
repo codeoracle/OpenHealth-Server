@@ -31,6 +31,7 @@ const init = async () => {
       tool_type TEXT DEFAULT 'symptom',
       provider TEXT,
       is_demo INTEGER DEFAULT 0,
+      client_id TEXT,
       state TEXT DEFAULT 'Nigeria',
       created_at TIMESTAMPTZ DEFAULT now(),
       updated_at TIMESTAMPTZ DEFAULT now()
@@ -46,7 +47,13 @@ const init = async () => {
 
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_created ON sessions(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_sessions_client ON sessions(client_id, created_at DESC);
   `);
+
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS client_id TEXT`);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_sessions_client ON sessions(client_id, created_at DESC)`
+  );
 };
 
 const logStatus = async () => {
@@ -71,8 +78,8 @@ const createSession = async (data) => {
       id, full_name, symptoms, age_range, gender,
       symptoms_check, causes, treatment,
       triage_level, triage_reason, tool_type,
-      provider, is_demo
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      provider, is_demo, client_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       data.id,
       data.fullName,
@@ -87,6 +94,7 @@ const createSession = async (data) => {
       data.toolType,
       data.provider,
       data.isDemo,
+      data.clientId,
     ]
   );
 };
@@ -99,11 +107,11 @@ const getSession = async (id) => {
   return rows[0];
 };
 
-const listSessions = async (limit) => {
+const listSessions = async (limit, clientId) => {
   const { rows } = await pool.query(
     `SELECT id, full_name, symptoms, age_range, gender, tool_type, triage_level, is_demo, ${CREATED_AT}
-     FROM sessions ORDER BY created_at DESC LIMIT $1`,
-    [limit]
+     FROM sessions WHERE client_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    [clientId, limit]
   );
   return rows;
 };
